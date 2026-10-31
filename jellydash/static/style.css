@@ -48,7 +48,6 @@ body {
 .hostline b { color: var(--fg); font-weight: 600; }
 .hostline em { color: var(--cyan); font-style: normal; }
 .topbar-right { display: flex; align-items: center; gap: 12px; }
-.clock { color: var(--yellow); font-variant-numeric: tabular-nums; }
 .badge {
 	font-size: 11px;
 	font-weight: 700;

@@ -1011,10 +1011,6 @@ function schedule() {
 	state.timer = setTimeout(async () => { await poll(); schedule(); }, state.intervalMs);
 }
 
-function tickClock() {
-	byId('clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
 /* ---------- installable app ---------- */
 
 function setupInstall() {
@@ -1046,6 +1042,4 @@ function setupInstall() {
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { poll(); schedule(); } });
 setupInstall();
 setupActions();
-tickClock();
-setInterval(tickClock, 1000);
 poll().then(schedule);
