@@ -1,0 +1,7 @@
+# Read-only commands jellydash may run as root without a password.
+# Keep the journal quiet: these run every few minutes and would log nine lines each time.
+Defaults:jellydash !syslog, !pam_session
+jellydash ALL=(root) NOPASSWD: /usr/sbin/smartctl, /usr/bin/smartctl
+jellydash ALL=(root) NOPASSWD: /usr/bin/tailscale status --json
+# Operator actions started from the dashboard (see [[actions]] in /etc/jellydash/config.toml).
+jellydash ALL=(root) NOPASSWD: /usr/local/bin/update -r

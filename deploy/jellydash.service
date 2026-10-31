@@ -1,0 +1,20 @@
+[Unit]
+Description=jellydash diagnostics dashboard
+After=network-online.target tailscaled.service docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jellydash
+Group=jellydash
+Environment=JELLYDASH_CONFIG=/etc/jellydash/config.toml
+Environment=PYTHONUNBUFFERED=1
+WorkingDirectory=/opt/jellydash
+ExecStart=/usr/bin/python3 -m jellydash
+Restart=on-failure
+RestartSec=5
+# No filesystem sandboxing: dashboard actions (update -r) run as children of this service
+# and need to write to /usr, /etc and /var like any apt or docker run would.
+
+[Install]
+WantedBy=multi-user.target

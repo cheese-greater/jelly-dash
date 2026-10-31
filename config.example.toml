@@ -1,0 +1,117 @@
+# jellydash configuration. Copy to /etc/jellydash/config.toml (install.sh does this).
+# Every key is optional; anything left out keeps the built-in default shown here.
+
+[server]
+# 0.0.0.0 listens on every interface (LAN + Tailscale). Use 127.0.0.1 together with
+# `tailscale serve` to expose it only inside your tailnet, with HTTPS and identity headers.
+bind = "0.0.0.0"
+port = 8585
+# Set this when tailscale serve mounts the dashboard under a path, e.g. `--set-path /jellydash`.
+# The bare URL keeps working too, so LAN access is unaffected.
+base_path = ""
+log_requests = false      # true logs every HTTP request to the journal (handy when debugging a proxy)
+sample_interval = 2.0     # seconds between cpu/mem/net/disk samples
+slow_interval = 10.0      # seconds between tailscale and service checks
+history_points = 180      # graph length (180 x 2s = 6 minutes)
+top_processes = 15
+
+[ups]
+# auto      try NUT (upsd on localhost:3493), then /sys/class/power_supply, then I2C fuel gauges
+# nut       Network UPS Tools only: a USB UPS such as a CyberPower driven by usbhid-ups
+# none      no UPS, the Pi is always "external power"
+# sysfs     only /sys/class/power_supply (kernel driver backed UPS)
+# max17040  Geekworm X120x family, PiSugar-like fuel gauges (I2C 0x36)
+# ina219    Waveshare UPS HAT / UPS HAT (B) / (C) (I2C 0x40-0x45)
+# command   run `command` and read JSON: {"on_battery": true, "percent": 83, "voltage": 3.9, "current": -0.4}
+source = "nut"
+nut_host = "localhost"
+nut_port = 3493
+nut_ups = ""              # empty = first UPS that upsd lists (the name from /etc/nut/ups.conf, e.g. "cyberpower")
+# Read-only queries need no login, exactly like `upsc`. Only fill these in if your upsd refuses
+# anonymous LIST VAR; the [upsmon_local] account from /etc/nut/upsd.users works here.
+nut_username = ""
+nut_password = ""
+i2c_bus = 1
+i2c_address = 0           # 0 = default for the chip (0x36 MAX1704x, probe 0x40-0x45 INA219); or e.g. 0x42
+cells = 1                 # INA219 only: lithium cells in series, used to estimate percent from voltage
+shunt_ohms = 0.1          # INA219 only
+invert_current = false    # INA219 only: flip if charging shows as discharging
+# Geekworm X1200/X1201/X1202/X1203: the PLD pin is GPIO6 and goes HIGH when input power is lost.
+power_loss_gpio = -1      # -1 disables; needs the `gpiod` package (gpioget) on Ubuntu
+power_loss_active_high = true
+command = ""
+
+[network]
+interfaces = []           # empty = show everything except hidden prefixes
+hide_prefixes = ["veth", "br-", "docker", "virbr"]
+
+[disks]
+exclude_fstypes = ["squashfs", "tmpfs", "devtmpfs", "overlay", "iso9660", "fuse.portal"]
+exclude_mounts = []
+smart = true              # needs smartmontools and the sudoers rule from deploy/
+smart_interval = 300      # seconds between SMART reads (never wakes a drive in standby)
+
+[processes]
+show_kernel_threads = false
+
+# Actions: buttons in the top bar that run a command on the Pi and stream its output into a
+# dialog. The service runs as the `jellydash` user, so anything needing root goes through
+# `sudo -n` and needs a matching line in /etc/sudoers.d/jellydash (deploy/sudoers-jellydash).
+# The command must be a real executable, not a shell alias or function. It gets a real terminal:
+# prompts can be answered from the dialog's input line, and Ctrl-C / stop work.
+[[actions]]
+name = "update"
+label = "update -r"
+description = "Update the system, Jellyfin, SearXNG and Tailscale"
+command = "sudo -n /usr/local/bin/update -r"
+confirm = true
+
+# Services: each entry may name a systemd unit, a docker container, a health URL and a
+# version URL (JSON, with a dotted key). Whatever exists is used; the rest is ignored.
+# Defining any [[services]] replaces the whole default list, so keep the ones you want.
+
+[[services]]
+name = "Jellyfin"
+systemd = "jellyfin"
+docker = "jellyfin"
+url = "http://127.0.0.1:8096/health"
+version_url = "http://127.0.0.1:8096/System/Info/Public"
+version_key = "Version"
+
+# url and version_url may be a list: the first one that answers is used. SearXNG here sits behind a
+# reverse proxy at http://<pi>/searxng, with the bare container port as a fallback.
+# systemd and docker may also be lists; the first unit or container that exists is shown.
+[[services]]
+name = "SearXNG"
+systemd = ["searxng", "uwsgi"]
+docker = "searxng"
+url = ["http://127.0.0.1/searxng/healthz", "http://127.0.0.1:8080/healthz"]
+version_url = ["http://127.0.0.1/searxng/config", "http://127.0.0.1:8080/config"]
+version_key = "version"
+
+[[services]]
+name = "Tailscale"
+systemd = "tailscaled"
+
+# optional = true hides the row when neither the unit nor the container exists on this machine.
+[[services]]
+name = "NUT"
+systemd = "nut-server"
+optional = true
+
+[[services]]
+name = "nginx"
+systemd = "nginx"
+docker = "nginx"
+optional = true
+
+[[services]]
+name = "Caddy"
+systemd = "caddy"
+docker = "caddy"
+optional = true
+
+[[services]]
+name = "Docker"
+systemd = "docker"
+optional = true

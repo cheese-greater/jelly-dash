@@ -1,0 +1,17 @@
+{
+	"name": "jellydash",
+	"short_name": "jellydash",
+	"description": "Diagnostics for the Pi 5 Jellyfin server: power, network, Tailscale, services, disks",
+	"start_url": "./",
+	"scope": "./",
+	"display": "standalone",
+	"orientation": "any",
+	"background_color": "#282a36",
+	"theme_color": "#282a36",
+	"categories": ["utilities"],
+	"icons": [
+		{ "src": "static/icon-192.png", "sizes": "192x192", "type": "image/png" },
+		{ "src": "static/icon-512.png", "sizes": "512x512", "type": "image/png" },
+		{ "src": "static/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+	]
+}

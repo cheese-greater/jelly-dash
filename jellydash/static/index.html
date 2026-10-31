@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>jellydash</title>
+<meta name="theme-color" content="#282a36">
+<meta name="application-name" content="jellydash">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="jellydash">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="static/icon.svg">
+<link rel="apple-touch-icon" href="static/apple-touch-icon.png">
+<link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+<header class="topbar">
+	<div class="brand">jelly<span>dash</span></div>
+	<div class="hostline" id="hostline">connecting to server…</div>
+	<div class="topbar-right">
+		<span class="clock" id="clock"></span>
+		<span class="actions" id="actions"></span>
+		<button class="install-button" id="install-button" type="button" hidden>install app</button>
+		<span class="badge" id="live-badge" title="">CONNECTING</span>
+		<span class="badge-reason" id="badge-reason" hidden></span>
+	</div>
+</header>
+
+<main class="grid">
+	<section class="box span-5" id="box-cpu">
+		<h2 class="title"><i>┤</i> cpu <i>├</i></h2>
+		<div class="title-right" id="cpu-right">--</div>
+		<div class="graph-wrap tall">
+			<canvas id="cpu-graph"></canvas>
+			<div class="graph-label" id="cpu-graph-label"></div>
+		</div>
+		<div class="cores" id="cpu-cores"></div>
+		<div class="kv" id="cpu-kv"></div>
+	</section>
+
+	<section class="box span-3" id="box-mem">
+		<h2 class="title"><i>┤</i> mem <i>├</i></h2>
+		<div class="title-right" id="mem-right">--</div>
+		<div class="graph-wrap short">
+			<canvas id="mem-graph"></canvas>
+			<div class="graph-label" id="mem-graph-label"></div>
+		</div>
+		<div class="meters" id="mem-meters"></div>
+		<div class="kv" id="mem-kv"></div>
+	</section>
+
+	<section class="box span-4" id="box-power">
+		<h2 class="title"><i>┤</i> power <i>├</i></h2>
+		<div class="title-right" id="power-right">--</div>
+		<div id="power-source" class="source-line"></div>
+		<div id="power-battery"></div>
+		<div class="kv" id="power-kv"></div>
+		<div class="flags" id="power-flags"></div>
+		<div class="graph-wrap short hidden" id="power-graph-wrap">
+			<canvas id="power-graph"></canvas>
+			<div class="graph-label" id="power-graph-label"></div>
+		</div>
+	</section>
+
+	<section class="box span-4" id="box-net">
+		<h2 class="title"><i>┤</i> net <i>├</i></h2>
+		<div class="title-right" id="net-right">--</div>
+		<div id="net-primary"></div>
+		<div class="graph-wrap short">
+			<canvas id="net-graph"></canvas>
+			<div class="graph-label" id="net-graph-label"></div>
+		</div>
+		<div class="list" id="net-list"></div>
+	</section>
+
+	<section class="box span-4" id="box-tailscale">
+		<h2 class="title"><i>┤</i> tailscale <i>├</i></h2>
+		<div class="title-right" id="ts-right">--</div>
+		<div class="kv" id="ts-kv"></div>
+		<div id="ts-health"></div>
+		<div id="ts-viewer" class="viewer"></div>
+		<div class="list" id="ts-peers"></div>
+	</section>
+
+	<section class="box span-4" id="box-services">
+		<h2 class="title"><i>┤</i> services <i>├</i></h2>
+		<div class="title-right" id="services-right">--</div>
+		<div class="list" id="services-list"></div>
+	</section>
+
+	<section class="box span-6" id="box-disks">
+		<h2 class="title"><i>┤</i> disks <i>├</i></h2>
+		<div class="title-right" id="disks-right">--</div>
+		<div class="graph-wrap short">
+			<canvas id="disk-graph"></canvas>
+			<div class="graph-label" id="disk-graph-label"></div>
+		</div>
+		<div class="list" id="disks-list"></div>
+	</section>
+
+	<section class="box span-6" id="box-proc">
+		<h2 class="title"><i>┤</i> proc <i>├</i></h2>
+		<div class="title-right" id="proc-right">--</div>
+		<div class="table-wrap">
+			<table class="proc-table" id="proc-table">
+				<thead><tr><th class="num">pid</th><th>name</th><th>user</th><th class="num">thr</th><th class="num">mem</th><th class="num">cpu%</th><th class="bar-col"></th></tr></thead>
+				<tbody></tbody>
+			</table>
+		</div>
+	</section>
+</main>
+
+<footer class="footer">
+	<div id="errors"></div>
+	<div class="footnote" id="footnote"></div>
+</footer>
+
+<dialog class="action-dialog" id="action-dialog">
+	<div class="dialog-head">
+		<span class="dialog-title"><i>┤</i> <span id="action-title">action</span> <i>├</i></span>
+		<span class="dialog-status" id="action-status"></span>
+		<button class="dialog-close" id="action-close" type="button" aria-label="close">✕</button>
+	</div>
+	<p class="dialog-description" id="action-description"></p>
+	<div class="dialog-confirm" id="action-confirm">
+		<code id="action-command"></code>
+		<div class="dialog-buttons">
+			<button class="button primary" id="action-run" type="button">run it</button>
+			<button class="button" id="action-cancel" type="button">cancel</button>
+		</div>
+	</div>
+	<div class="terminal" id="action-terminal" tabindex="0" hidden></div>
+	<form class="terminal-input" id="action-input-row" hidden>
+		<span class="prompt">›</span>
+		<input id="action-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="type a reply for a prompt and press Enter (Enter alone sends a newline)">
+		<button class="button" id="action-send" type="submit">send</button>
+		<button class="button" id="action-interrupt" type="button" title="send Ctrl-C">^C</button>
+		<button class="button danger" id="action-stop" type="button" title="terminate the command">stop</button>
+	</form>
+	<div class="dialog-foot" id="action-foot" hidden>
+		<label><input id="action-follow" type="checkbox" checked> follow output</label>
+		<button class="button" id="action-rerun" type="button" hidden>run again</button>
+		<span class="dialog-meta" id="action-meta"></span>
+	</div>
+</dialog>
+
+<script src="static/app.js"></script>
+</body>
+</html>

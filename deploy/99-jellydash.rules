@@ -1,0 +1,4 @@
+# Let the jellydash service user read the fuel gauge (I2C), header GPIO and firmware mailbox.
+KERNEL=="i2c-[0-9]*", GROUP="i2c", MODE="0660"
+SUBSYSTEM=="gpio", KERNEL=="gpiochip*", GROUP="gpio", MODE="0660"
+KERNEL=="vcio", GROUP="video", MODE="0660"
