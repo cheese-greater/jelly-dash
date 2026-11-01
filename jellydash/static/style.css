@@ -186,6 +186,24 @@ body {
 .bar.purple > i { background: var(--purple); }
 .bar.pink > i { background: var(--pink); }
 .bar.red > i { background: var(--red); }
+.bar.labeled { height: 16px; }
+.bar.labeled > span {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	padding: 0 6px;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1;
+	white-space: nowrap;
+	color: var(--fg);
+	text-shadow: 0 0 2px var(--bg), 0 0 2px var(--bg), 0 1px 1px var(--bg);
+	pointer-events: none;
+}
+.bar.labeled > .l { left: 0; }
+.bar.labeled > .r { right: 0; }
 .bar.reverse > i { background: linear-gradient(90deg, var(--red) 0%, var(--orange) 25%, var(--yellow) 50%, var(--green) 100%); }
 
 .meter { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }

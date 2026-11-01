@@ -93,6 +93,13 @@ function barHtml(percent, variant = '') {
 	return `<span class="bar ${variant}"><i style="clip-path: inset(0 ${100 - clamped}% 0 0)"></i></span>`;
 }
 
+/* A taller bar with text at each end: the filled amount on the left, the remainder on the right. */
+function labeledBarHtml(percent, leftText, rightText, variant = '') {
+	const clamped = Math.max(0, Math.min(100, Number(percent) || 0));
+	return `<span class="bar labeled ${variant}"><i style="clip-path: inset(0 ${100 - clamped}% 0 0)"></i>` +
+		`<span class="l">${esc(leftText)}</span><span class="r">${esc(rightText)}</span></span>`;
+}
+
 function kvHtml(rows) {
 	return rows.filter((row) => row).map(([key, value, extraClass]) =>
 		`<span class="k">${esc(key)}</span><span class="v ${extraClass || ''}">${value}</span>`
@@ -552,12 +559,13 @@ function renderDisks(data) {
 			smart && smart.power_on_hours ? `${Math.round(smart.power_on_hours / 24)} d on` : null,
 			smart && smart.percentage_used !== undefined && smart.percentage_used !== null ? `${smart.percentage_used}% worn` : null
 		].filter(Boolean).join(' · ');
+		const subLine = [facts, smartHtml].filter(Boolean).join(' · ');
 		return `<div class="row">
 			<span>${statusDot(mount.percent >= 90 ? 'bad' : (mount.percent >= 75 ? 'warn' : 'ok'))}</span>
 			<div class="main"><span class="name">${esc(mount.mountpoint)}</span><span class="meta">${esc(mount.device)}</span>${tag(mount.fstype, 'dim')}
 				<span class="right"><span class="c-purple">r ${fmtRate(device.read_rate)}</span> <span class="c-green">w ${fmtRate(device.write_rate)}</span></span></div>
-			<div class="usage">${barHtml(mount.percent)}<span class="pct ${levelClass(mount.percent, 75, 90)}">${fmtPct(mount.percent)}</span></div>
-			<div class="sub"><b>${fmtBytes(mount.used)}</b> used · <b>${fmtBytes(mount.free)}</b> free of ${fmtBytes(mount.total)}${facts ? ' · ' + facts : ''}${smartHtml ? ' · ' + smartHtml : ''}</div>
+			<div class="usage">${labeledBarHtml(mount.percent, `${fmtBytes(mount.used)} used`, `${fmtBytes(mount.free)} free`)}<span class="pct ${levelClass(mount.percent, 75, 90)}">${fmtPct(mount.percent)}</span></div>
+			${subLine ? `<div class="sub">${subLine}</div>` : ''}
 		</div>`;
 	}).join('') || '<div class="c-comment">no mounted block devices</div>';
 }
