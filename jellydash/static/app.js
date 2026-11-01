@@ -23,6 +23,17 @@ function esc(value) {
 	})[character]);
 }
 
+/* Dotted quad with an optional /prefix or :port; IPv6 entries and bracketed endpoints fail this. */
+const IPV4_PATTERN = /^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?(:\d{1,5})?$/;
+
+function isIpv4(address) {
+	return typeof address === 'string' && IPV4_PATTERN.test(address);
+}
+
+function ipv4Only(addresses) {
+	return (addresses || []).filter(isIpv4);
+}
+
 function fmtBytes(bytes, decimals = 1) {
 	if (bytes === null || bytes === undefined || Number.isNaN(bytes)) return '--';
 	const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
@@ -271,14 +282,12 @@ function initGraphs(points) {
 
 function renderHeader(data) {
 	const host = data.host || {};
-	const cpu = data.cpu || {};
 	byId('hostline').innerHTML = [
 		`<b>${esc(host.hostname || '?')}</b>`,
 		host.model ? esc(host.model) : null,
 		host.os ? esc(host.os) : null,
 		host.kernel ? `<em>${esc(host.kernel)}</em>` : null,
-		host.uptime_s !== undefined ? `up <b>${fmtDuration(host.uptime_s)}</b>` : null,
-		cpu.load ? `load ${cpu.load.map((value) => value.toFixed(2)).join(' ')}` : null
+		host.uptime_s !== undefined ? `up <b>${fmtDuration(host.uptime_s)}</b>` : null
 	].filter(Boolean).join(' <span class="c-current">·</span> ');
 }
 
@@ -295,9 +304,7 @@ function renderCpu(data) {
 	byId('cpu-kv').innerHTML = kvHtml([
 		['freq', freq],
 		['temp', temp !== null && temp !== undefined ? `<span class="${levelClass(temp, 65, 80)}">${temp.toFixed(1)} °C</span>` : '--'],
-		['load', cpu.load ? cpu.load.map((value) => value.toFixed(2)).join('  ') : '--'],
-		cpu.fan_rpm !== null && cpu.fan_rpm !== undefined ? ['fan', `${Math.round(cpu.fan_rpm)} rpm`] : null,
-		['procs', data.processes ? `${data.processes.count} <span class="c-comment">(${data.processes.running} running)</span>` : '--']
+		cpu.fan_rpm !== null && cpu.fan_rpm !== undefined ? ['fan', `${Math.round(cpu.fan_rpm)} rpm`] : null
 	]);
 }
 
@@ -331,6 +338,7 @@ function renderPower(data) {
 	const source = power.source || 'unknown';
 	const sourceText = { battery: 'ON BATTERY', external: 'EXTERNAL POWER', unknown: 'POWER SOURCE UNKNOWN' }[source];
 	const sourceVariant = { battery: 'bad', external: 'ok', unknown: 'warn' }[source];
+	const viaNut = ups.available && ups.source === 'nut';
 	const sourceNote = ups.available ? `${esc(ups.chip || ups.source || 'ups')}${ups.source === 'nut' ? ' via NUT' : ''}${ups.address ? ' @' + esc(ups.address) : ''}` : esc(ups.detail || 'no UPS detected');
 	byId('power-source').className = `source-line ${source}`;
 	byId('power-source').innerHTML = `${statusDot(sourceVariant)} ${sourceText}<small>${sourceNote}</small>`;
@@ -381,18 +389,25 @@ function renderPower(data) {
 	const maxCurrent = psu.max_current_ma ? `${(psu.max_current_ma / 1000).toFixed(1)} A${psu.max_current_ma >= 5000 ? ' <span class="c-green">(PD 5A)</span>' : ' <span class="c-yellow">(no 5A PD)</span>'}` : null;
 	const inputVoltage = psu.input_voltage ? `<span class="${psu.input_voltage < 4.8 ? 'c-red' : 'c-green'}">${psu.input_voltage.toFixed(3)} V</span>` : null;
 	const coreVolt = rails.VDD_CORE_V ? `${rails.VDD_CORE_V.toFixed(3)} V · ${(rails.VDD_CORE_A || 0).toFixed(2)} A` : null;
-	byId('power-kv').innerHTML = kvHtml([
+	const boardRows = [
 		inputVoltage ? ['input', inputVoltage] : null,
 		maxCurrent ? ['psu limit', maxCurrent] : null,
-		psu.total_power_w !== null && psu.total_power_w !== undefined ? ['board', `${psu.total_power_w.toFixed(2)} W`] : null,
-		coreVolt ? ['vdd core', coreVolt] : null,
-		psu.usb_max_current_enable !== null && psu.usb_max_current_enable !== undefined ? ['usb limit', psu.usb_max_current_enable ? 'raised (1.6 A)' : 'default (600 mA)'] : null,
-		['throttle src', throttled.source ? esc(throttled.source) : `<span class="c-comment">${esc(throttled.error || 'unavailable')}</span>`]
-	]);
+		psu.total_power_w !== null && psu.total_power_w !== undefined ? ['board', `${psu.total_power_w.toFixed(2)} W`] : null
+	];
+	/* The SoC rail, USB current limit and throttle readouts are Pi board details; a UPS reporting via NUT hides them. */
+	if (!viaNut) {
+		boardRows.push(
+			coreVolt ? ['vdd core', coreVolt] : null,
+			psu.usb_max_current_enable !== null && psu.usb_max_current_enable !== undefined ? ['usb limit', psu.usb_max_current_enable ? 'raised (1.6 A)' : 'default (600 mA)'] : null,
+			['throttle src', throttled.source ? esc(throttled.source) : `<span class="c-comment">${esc(throttled.error || 'unavailable')}</span>`]
+		);
+	}
+	byId('power-kv').innerHTML = kvHtml(boardRows);
 
 	const flags = throttled.flags || {};
 	const flagNames = [['under_voltage', 'under-voltage'], ['throttled', 'throttled'], ['freq_capped', 'freq capped'], ['soft_temp_limit', 'temp limit']];
-	byId('power-flags').innerHTML = flagNames.map(([key, label]) => {
+	byId('power-flags').classList.toggle('hidden', viaNut);
+	byId('power-flags').innerHTML = viaNut ? '' : flagNames.map(([key, label]) => {
 		const flag = flags[key];
 		if (!flag) return `<div class="flag"><span class="k">${label}</span><span class="v c-comment">--</span></div>`;
 		const now = flag.now ? '<span class="c-red">● now</span>' : '<span class="c-green">○ now</span>';
@@ -432,7 +447,7 @@ function renderNetwork(data) {
 		headline += primary.speed_mbps ? `<span class="meta">${primary.speed_mbps >= 1000 ? `${primary.speed_mbps / 1000} Gb/s` : `${primary.speed_mbps} Mb/s`} link</span>` : '';
 		headline += `</div>`;
 	}
-	headline += `<div class="sub">${esc((primary.ips || []).join('  ') || 'no address')}</div></div>`;
+	headline += `<div class="sub">${esc(ipv4Only(primary.ips).join('  ') || 'no address')}</div></div>`;
 	byId('net-primary').innerHTML = headline;
 
 	byId('net-list').innerHTML = interfaces.filter((entry) => entry.name !== primary.name).map((entry) => `
@@ -440,7 +455,7 @@ function renderNetwork(data) {
 			<span>${statusDot(entry.up ? 'ok' : 'dim')}</span>
 			<div class="main"><span class="name">${esc(entry.name)}</span>${kindTag(entry.kind)}
 				<span class="right"><span class="c-cyan">▼ ${fmtRate(entry.rx_rate)}</span> <span class="c-pink">▲ ${fmtRate(entry.tx_rate)}</span></span></div>
-			<div class="sub">${esc((entry.ips || []).join('  ') || (entry.up ? 'no address' : 'down'))}${entry.kind === 'wifi' && entry.wifi && entry.wifi.signal_dbm !== null ? ` · ${entry.wifi.signal_dbm} dBm` : ''}</div>
+			<div class="sub">${esc(ipv4Only(entry.ips).join('  ') || (entry.up ? 'no address' : 'down'))}${entry.kind === 'wifi' && entry.wifi && entry.wifi.signal_dbm !== null ? ` · ${entry.wifi.signal_dbm} dBm` : ''}</div>
 		</div>`).join('');
 }
 
@@ -459,20 +474,18 @@ function renderTailscale(data) {
 	byId('ts-right').innerHTML = `<span class="${running ? 'c-green' : 'c-red'}">${esc(tailscale.state)}</span> <span class="c-comment">│ ${tailscale.peers_online}/${tailscale.peers_total} peers online</span>`;
 	byId('ts-kv').innerHTML = kvHtml([
 		['node', `<b>${esc(tailscale.dns_name || tailscale.hostname || '--')}</b>`],
-		['ips', esc((tailscale.ips || []).join('  '))],
+		['ips', esc(ipv4Only(tailscale.ips).join('  '))],
 		tailscale.tailnet ? ['tailnet', esc(tailscale.tailnet)] : null,
-		['version', esc(tailscale.version || '--')],
-		['derp', tailscale.relay ? esc(tailscale.relay) : '<span class="c-comment">none</span>'],
-		['exit node', tailscale.exit_node ? `<span class="c-yellow">${esc(tailscale.exit_node)}</span>` : `<span class="c-comment">${tailscale.exit_node_option ? 'this node offers exit' : 'none'}</span>`]
+		['version', esc(tailscale.version || '--')]
 	]);
 	byId('ts-health').innerHTML = (tailscale.health || []).map((message) => `<div class="health">${esc(message)}</div>`).join('');
 	byId('ts-viewer').innerHTML = renderViewer(viewer);
 	byId('ts-peers').innerHTML = (tailscale.peers || []).map((peer) => {
-		const path = peer.online ? (peer.direct ? `<span class="c-green">direct</span> ${esc(peer.cur_addr || '')}` : `<span class="c-yellow">relay</span> ${esc(peer.relay || '')}`) : `<span class="c-comment">last seen ${fmtAgo(peer.last_seen)}</span>`;
+		const path = peer.online ? (peer.direct ? `<span class="c-green">direct</span> ${esc(isIpv4(peer.cur_addr) ? peer.cur_addr : '')}` : `<span class="c-yellow">relay</span> ${esc(peer.relay || '')}`) : `<span class="c-comment">last seen ${fmtAgo(peer.last_seen)}</span>`;
 		return `<div class="row">
 			<span>${statusDot(peer.online ? 'ok' : 'dim')}</span>
 			<div class="main"><span class="name">${esc(peer.hostname)}</span><span class="meta">${esc(peer.os || '')}</span>${peer.exit_node ? tag('exit node', 'warn') : ''}${peer.exit_node_option && !peer.exit_node ? tag('exit', 'dim') : ''}<span class="right">${path}</span></div>
-			<div class="sub">${esc((peer.ips || [])[0] || '')}${peer.online && (peer.rx_bytes || peer.tx_bytes) ? ` · ▼ ${fmtBytes(peer.rx_bytes)} ▲ ${fmtBytes(peer.tx_bytes)}` : ''}</div>
+			<div class="sub">${esc(ipv4Only(peer.ips)[0] || '')}${peer.online && (peer.rx_bytes || peer.tx_bytes) ? ` · ▼ ${fmtBytes(peer.rx_bytes)} ▲ ${fmtBytes(peer.tx_bytes)}` : ''}</div>
 		</div>`;
 	}).join('');
 }
@@ -481,11 +494,12 @@ function renderViewer(viewer) {
 	if (!viewer || !viewer.ip) return '';
 	const who = viewer.name || viewer.login ? `<b>${esc(viewer.name || viewer.login)}</b> ` : '';
 	if (viewer.peer) {
-		const path = viewer.peer.direct ? `<span class="c-green">direct</span>${viewer.peer.cur_addr ? ' via ' + esc(viewer.peer.cur_addr) : ''}` : `<span class="c-yellow">relayed</span>${viewer.peer.relay ? ' via DERP ' + esc(viewer.peer.relay) : ''}`;
+		const path = viewer.peer.direct ? `<span class="c-green">direct</span>${isIpv4(viewer.peer.cur_addr) ? ' via ' + esc(viewer.peer.cur_addr) : ''}` : `<span class="c-yellow">relayed</span>${viewer.peer.relay ? ' via DERP ' + esc(viewer.peer.relay) : ''}`;
 		return `you: ${who}from <b>${esc(viewer.peer.hostname)}</b> (${esc(viewer.peer.os || '?')}) over tailscale, ${path}`;
 	}
-	if (viewer.via === 'tailscale') return `you: ${who}over tailscale from ${esc(viewer.ip)}`;
-	return `you: ${who}on the LAN from ${esc(viewer.ip)}`;
+	const origin = isIpv4(viewer.ip) ? ` from ${esc(viewer.ip)}` : '';
+	if (viewer.via === 'tailscale') return `you: ${who}over tailscale${origin}`;
+	return `you: ${who}on the LAN${origin}`;
 }
 
 function renderServices(data) {

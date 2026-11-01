@@ -43,6 +43,38 @@ Optional packages on the Pi:
 sudo apt install smartmontools gpiod   # SMART health; GPIO power-loss pin for Geekworm UPS HATs
 ```
 
+### Keeping the SD card quiet
+
+On a stock Ubuntu Server install the Pi wrote about 4.5 GB a day to the card while idle,
+nearly all of it logging. The log volume itself is tiny; the cost is journald's persistent
+binary journal, where every message dirties several scattered pages and ext4 then commits a
+transaction for each flush. Two changes bring it down to roughly 200 MB a day:
+
+```sh
+# journal in RAM; rsyslog keeps the plain-text copy in /var/log/syslog across reboots
+sudo mkdir -p /etc/systemd/journald.conf.d
+printf '[Journal]\nStorage=volatile\nRuntimeMaxUse=64M\n' | sudo tee /etc/systemd/journald.conf.d/sdcard.conf
+sudo systemctl restart systemd-journald
+
+# batch ext4 journal commits (60 s instead of 5 s) and skip access-time updates
+sudo sed -i -E 's|^(LABEL=writable\s+/\s+ext4\s+)defaults(\s)|\1defaults,noatime,commit=60\2|' /etc/fstab
+sudo mount -o remount,commit=60,noatime /
+sudo systemctl daemon-reload
+```
+
+The 60 s commit interval means up to a minute of filesystem changes can be lost on a hard
+power cut, which the UPS covers. To check the write rate afterwards:
+
+```sh
+a=$(awk '$3=="mmcblk0"{print $10}' /proc/diskstats); sleep 60; b=$(awk '$3=="mmcblk0"{print $10}' /proc/diskstats); echo "$(( (b-a)*512/1024 )) KB written in 60 s"
+sudo iotop -b -a -o -P -d 60 -n 2      # apt install iotop; which processes wrote, over one minute
+```
+
+Jellyfin keeps its databases, metadata and transcode segments on the card under
+`/var/lib/jellyfin` and `/var/cache/jellyfin`. Day to day that is a trickle, but transcoded
+playback writes the whole stream as segments, so if transcoding is common move the
+transcoding path (Dashboard, Playback, Transcoding) to the NVMe.
+
 ### Reaching it over Tailscale
 
 The service binds to all interfaces by default, so it is already reachable at
